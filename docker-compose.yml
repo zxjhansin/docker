@@ -1,6 +1,24 @@
 version: "3.0"
-
 services:
+  gitLab:
+    image: gitlab/gitlab-ce
+    container_name: gitlab
+    ports:
+      - 2222:22
+      - 2288:80
+      - 2443:443
+    volumes:
+      - /var/gitlab/config:/etc/gitlab
+      - /var/gitlab/repo:/var/opt/gitlab
+      - /var/gitlab/log:/var/log/gitlab
+  showDoc:
+    image: star7th/showdoc
+    container_name: showDoc
+    restart: always
+    ports:
+      - 4999:80
+    volumes:
+      - /var/showdoc_data/html:/var/www/html  
   jenkins:
     image: jenkinsci/blueocean
     container_name: jenkins
