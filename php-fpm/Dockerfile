@@ -3,7 +3,7 @@
 ###########################################################################
 FROM php:7.2-fpm-alpine
 
-LABEL maintainer="jhansin <jhansin@163.com>"
+LABEL maintainer="Jhansin <jhansin@163.com>"
 
 ###########################################################################
 # System Extensions:

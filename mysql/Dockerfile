@@ -1,7 +1,7 @@
 ARG MYSQL_VERSION
 FROM mysql:5.7
 
-LABEL maintainer="YanlongMa <json_vip@163.com>"
+LABEL maintainer="Jhansin <jhansin@163.com>"
 
 CMD ["mysqld"]
 

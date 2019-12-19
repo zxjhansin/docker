@@ -1,7 +1,7 @@
 ARG MONGO_VERSION
-FROM mongo:${MONGO_VERSION}
+FROM mongo:latest
 
-LABEL maintainer="YanlongMa <json_vip@163.com>"
+LABEL maintainer="Jhansin <jhansin@163.com>"
 
 #COPY mongo.conf /usr/local/etc/mongo/mongo.conf
 
