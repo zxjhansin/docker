@@ -1,5 +1,5 @@
 ARG MEMCACHED_VERSION
-FROM memcached:${MEMCACHED_VERSION}-alpine
+FROM memcached:1.5.16-alpine
 
 LABEL maintainer="YanlongMa <json_vip@163.com>"
 

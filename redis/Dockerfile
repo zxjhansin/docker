@@ -1,5 +1,5 @@
 ARG REDIS_VERSION
-FROM redis:${REDIS_VERSION}-alpine
+FROM redis:5.0-alpine
 
 LABEL maintainer="YanlongMa <json_vip@163.com>"
 
