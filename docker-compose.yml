@@ -1,5 +1,12 @@
 version: "3.0"
 services:
+  easyswoole:
+    image: easyswoole/easyswoole3
+    container_name: easyswoole
+    ports:
+      - 9501:9501
+    volumes:
+      - /www/easyswoole:/easyswoole
   gitLab:
     image: gitlab/gitlab-ce
     container_name: gitlab
