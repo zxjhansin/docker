@@ -1,0 +1,44 @@
+version: "3"
+services:
+  proxy:
+    image: $REPO/mdc-proxy:2.0.1220
+    ports:
+      - "$HTTP:80"
+      - "$HTTPS:443"
+    networks:
+      - proxy
+    environment:
+      - LISTENER_ADDRESS=listener
+      - MODE=swarm
+      - TIMEOUT_CLIENT=$TIMEOUT
+      - TIMEOUT_SERVER=$TIMEOUT
+      - DEBUG=true
+      - DEBUG_ERRORS_ONLY=true
+    logging:
+      driver: "journald"
+      options:
+        tag: proxy.proxy
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+  listener:
+    image: vfarcic/docker-flow-swarm-listener:17.11.11-22
+    networks:
+      - proxy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DF_NOTIFY_CREATE_SERVICE_URL=http://proxy:8080/v1/docker-flow-proxy/reconfigure
+      - DF_NOTIFY_REMOVE_SERVICE_URL=http://proxy:8080/v1/docker-flow-proxy/remove
+    logging:
+      driver: "journald"
+      options:
+        tag: proxy.listener
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+networks:
+  proxy:
+    external: true

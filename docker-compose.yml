@@ -2,121 +2,62 @@ version: "3.0"
 services:
   nginx-php-fpm:
     image: richarvey/nginx-php-fpm:latest
+    container_name: nginx-php
     restart: always
-    environment:
-      SSH_KEY: '<YOUR _KEY_HERE>'
-      GIT_REPO: 'git@github.com:<YOUR_ACCOUNT>/<YOUR_REPO>.git'
-      GIT_EMAIL: 'void@ngd.io'
-      GIT_NAME: '<YOUR_NAME>'
-  easyswoole:
-    image: easyswoole/easyswoole3
-    container_name: easyswoole
-    ports:
-      - 9501:9501
-    volumes:
-      - /www/easyswoole:/easyswoole
-  gitLab:
-    image: gitlab/gitlab-ce
-    container_name: gitlab
-    ports:
-      - 2222:22
-      - 2288:80
-      - 2443:443
-    volumes:
-      - /var/gitlab/config:/etc/gitlab
-      - /var/gitlab/repo:/var/opt/gitlab
-      - /var/gitlab/log:/var/log/gitlab
-  showDoc:
-    image: star7th/showdoc
-    container_name: showDoc
-    restart: always
-    ports:
-      - 4999:80
-    volumes:
-      - /var/showdoc_data/html:/var/www/html  
-  jenkins:
-    image: jenkinsci/blueocean
-    container_name: jenkins
-    restart: always
-    ports:
-      - 8888:8080
-      - 50000:50000
-    volumes:
-      - /var/jenkins_home:/var/jenkins_home
-  vue:
-    build:
-      context: ./vue
-    container_name: vue
     ports:
       - 8080:80
-    volumes:
-      - ../vue:/usr/share/nginx/html/
-  nginx:
-    build:
-      context: ./nginx
-    container_name: nginx
-    ports:
-      - 80:80
       - 443:443
+      - 9000:9000
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./nginx/sites:/etc/nginx/conf.d
       - ./nginx/ssl:/etc/nginx/ssl
       - ./www:/var/www
-    depends_on:
-      - php-fpm
-      - mysql
-
-  php-fpm:
-    build:
-      context: ./php-fpm
-    container_name: php
-    ports:
-      - 9000:9000
-    volumes:
-      - ./php-fpm/conf-7.2/php.ini:/usr/local/etc/php/php.ini
-      - ./php-fpm/conf-7.2/php-fpm.conf:/usr/local/etc/php-fpm.conf
-      - ./php-fpm/conf-7.2/php-fpm.d:/usr/local/etc/php-fpm.d
-      - ./www:/var/www
-  mysql:
-    build:
-      context: ./mysql
-      # args:
-        # - MYSQL_VERSION=${MYSQL_VERSION}
-    container_name: mysql
-    ports:
-      - 3306:3306
-    volumes:
-      - ./mysql/data:/var/lib/mysql
-    restart: always
-    environment:
-      - MYSQL_ROOT_PASSWORD=123456
+    # environment:
+    #   SSH_KEY: 'ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAwrMUo8v2/zD9Kfg5MSzeAWvx2xiQPpT1vz90y3MIyUYn5lYf4EgcmcseSEJ/qmKWcWOj30geGrKOq2X110xLCNTVVJ7Xq7pHRnjIshxqcQGHKHyAE20ngVcQlmUoir5AY/4seqxfYH6abbWtg2qEo0CelagSkH08EL0zYDTJBzyRaf8O/xgzAhGBsXk2pVTFP1RcpDFZSUfAnwNpL+kgjv3k9UZJOD1BIzmAxZdfj9d3btjZymIGOyyxyD7VTxY1sKOKKeWf2DQjgw0uJJ36VlUB06OuXehbeRGggnBA7XKHx1MgqXMTJ4cMsUZHKAoLiaZTtJaVvwsyPkxLxMW85Q== zhangxin@uuke.com.cn'
+    #   GIT_REPO: 'github.com/zxjhansin/tp5.git'
+    #   GIT_EMAIL: 'zhangxin@uuke.com.cn'
+    #   GIT_USERNAME: 'zhangxin'
   mongo:
-    build:
-      context: ./mongo
-      # args:
-        # - MONGO_VERSION=${MONGO_VERSION}
-    container_name: mysql
+    image: mongo:latest
+    container_name: mongo
     ports:
       - 27017:27017
-    volumes:
-      - ./mongo/data:/data/db
     restart: always
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: 123456
-  redis:
-    build:
-      context: ./redis
-    container_name: redis
+  proxy:
+    image: dockerflow/docker-flow-proxy
     ports:
-      - 6379:6379
+      - "8000:80"
+      - "8443:443"
+    networks:
+      - proxy
+    environment:
+      - LISTENER_ADDRESS=listener
+      - MODE=swarm
+      - TIMEOUT_CLIENT=40
+      - TIMEOUT_SERVER=40
+      - DEBUG=true
+      - DEBUG_ERRORS_ONLY=true
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+  listener:
+    image: vfarcic/docker-flow-swarm-listener:17.11.11-22
+    networks:
+      - proxy
     volumes:
-      - ./redis/data:/data
-    restart: always
-  memcached:
-    build:
-      context: ./memcached
-    container_name: memcached
-    ports:
-      - 11211:11211
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DF_NOTIFY_CREATE_SERVICE_URL=http://proxy:8080/v1/docker-flow-proxy/reconfigure
+      - DF_NOTIFY_REMOVE_SERVICE_URL=http://proxy:8080/v1/docker-flow-proxy/remove
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+networks:
+  proxy:
+    external: true
