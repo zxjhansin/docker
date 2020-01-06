@@ -1,0 +1,29 @@
+#!/bin/bash
+
+#-------------------------------------------------------------------------------
+# Project config
+
+export PRJ=user
+export USER=fe
+export SSH=user
+export PORT=8001
+export SSHPORT=2200
+export SVC_PORT=8000
+export VOLUMES="default mongo ssh etc"
+export REPL=user
+export MONGO_DB=user
+REST=( 
+	"/v1/user,401" 
+)
+
+function install {
+	if [ "$1" == "primary" ]; then
+		dkid mongo
+		docker exec $ID createu $MGOUSER $MGOPASS lesson lesson Passw0rd
+	fi
+}
+
+#-------------------------------------------------------------------------------
+# Common Service 
+
+source ../service

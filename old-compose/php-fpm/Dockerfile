@@ -93,5 +93,5 @@ VOLUME /var/www
 WORKDIR /var/www
 
 
-EXPOSE 9000
+EXPOSE 9000 80 443
 CMD ["php-fpm"]

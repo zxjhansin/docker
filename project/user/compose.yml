@@ -1,0 +1,49 @@
+version: "3.0"
+services:
+  main:
+    image: jhansin/nginx-php:v1
+    tty: true  
+    hostname: user
+    ports:
+      - $PORT:80
+    volumes:
+      - ./conf.d:/etc/nginx/conf.d
+      # - ./nginx/sites:/etc/nginx/conf.d
+      # - ./nginx/ssl:/etc/nginx/ssl
+      - ./www:/usr/share/nginx/html/public/
+    networks:
+      - proxy
+      - default
+    deploy:
+      placement:
+        constraints: 
+          - engine.labels.function == $USER
+      labels:
+        - com.df.notify=true
+        - com.df.distribute=true
+        - com.df.servicePath=/v1/user
+        - com.df.port=80
+    depends_on:
+        - mongo
+    # environment:
+    #   SSH_KEY: 'ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAwrMUo8v2/zD9Kfg5MSzeAWvx2xiQPpT1vz90y3MIyUYn5lYf4EgcmcseSEJ/qmKWcWOj30geGrKOq2X110xLCNTVVJ7Xq7pHRnjIshxqcQGHKHyAE20ngVcQlmUoir5AY/4seqxfYH6abbWtg2qEo0CelagSkH08EL0zYDTJBzyRaf8O/xgzAhGBsXk2pVTFP1RcpDFZSUfAnwNpL+kgjv3k9UZJOD1BIzmAxZdfj9d3btjZymIGOyyxyD7VTxY1sKOKKeWf2DQjgw0uJJ36VlUB06OuXehbeRGggnBA7XKHx1MgqXMTJ4cMsUZHKAoLiaZTtJaVvwsyPkxLxMW85Q== zhangxin@uuke.com.cn'
+    #   GIT_REPO: 'github.com/zxjhansin/tp5.git'
+    #   GIT_EMAIL: 'zhangxin@uuke.com.cn'
+    #   GIT_USERNAME: 'zhangxin'
+  mongo:
+    image: mongo:latest
+    hostname: mongo
+    ports:
+      - 27017:27017
+    networks:
+      - default
+    deploy:
+      placement:
+        constraints:
+          - engine.labels.function == $USER
+
+
+networks:
+  proxy:
+    external: true
+  default:

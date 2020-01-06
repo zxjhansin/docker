@@ -1,0 +1,394 @@
+#!/bin/bash
+
+#-------------------------------------------------------------------------------
+# Common config
+# PRJ=`basename $0`
+
+BDIR="$( cd -P "$( dirname "$0" )" && pwd )"
+YML=compose.yml
+SUDO=
+RENUM='^[0-9]+$'
+DBPWD=Passw0rd
+export REPO=116.255.134.11:5000
+export COMPOSE_HTTP_TIMEOUT=180
+export IP=`hostname --ip-address`
+export HOST=`hostname -s`
+export PATH=/opt/bin:$PATH
+export MGOUSER=admin
+export MGOPASS=Passw0rd
+export MGOCMD=""
+export MGOPORT=27017
+
+#-------------------------------------------------------------------------------
+# Common functions
+
+function help {
+	echo "
+Usage: $PRJ [OPTION]
+
+  start   - start all containers
+  stop    - stop all containers
+  restart - restart all containers
+  sh name - execute shell in the container
+  run     - execute command remotely
+  export type file 
+          - export data to the specified file, for example 'run export db cas cas_db.tar.gz'
+  import type file 
+          - reset data to the specified file, for example 'run import db cas cas.db.tar.gz'
+$HELP"
+	exit 0
+}
+
+function volume() {
+	for v in $VOLUMES; do 
+		echo "Create volume dir /data/$PRJ/$v"
+		$SUDO mkdir -p /data/$PRJ/$v
+	done
+}
+
+function drush {
+	dkid main
+	docker exec $ID sh -c "
+		cd /srv/drupal;
+		drush $1 $2 $3 $4 $5 $6
+	"	
+}
+
+function init {
+	CONTAINER=main
+	if [ "$1" != "" ]; then 
+		CONTAINER=$1
+	fi
+	if [ `type -t _init`"" == 'function' ]; then
+		_init $CONTAINER $2
+	else
+		install $CONTAINER $2
+		cron $CONTAINER $2
+	fi
+}
+
+function purge {
+	for v in $VOLUMES; do 
+		echo "Remove volume dir /data/$PRJ/$v"
+		$SUDO rm -rf /data/$PRJ/$v
+	done
+}
+
+function cup {
+	if [ "$1" != "" ]; then
+		YML=$1
+	fi
+	docker-compose -f $BDIR/$YML -p $PRJ up
+}
+
+function start {
+	if [ "$1" != "" ]; then
+		YML=$1
+	fi
+	echo $BDIR;
+	docker stack deploy -c $BDIR/$YML $PRJ
+}
+
+function stop {
+	ID=`docker ps -f name=$PRJ'_'$1* --format {{.ID}}`
+	docker stop $ID
+}
+
+function restart {
+	if [ `type -t _restart`"" == 'function' ]; then
+		_restart $1
+	elif [[ $1 =~ $RENUM ]]; then 
+		docker stack rm $PRJ
+		echo "Wait $1 seconds until all services are removed..."
+		sleep $1	
+		docker stack deploy -c $BDIR/$YML $PRJ
+	elif [ "$1" != "" ]; then
+		ID=`docker ps -f name=$PRJ'_'$1* --format {{.ID}}`
+		docker restart $ID
+		docker ps -f name=$PRJ'_'$1* --format "table {{.ID}}\t{{.Names}}\t{{.RunningFor}}\t{{.Status}}"
+	fi
+	if [ `type -t _post_restart`"" == 'function' ]; then
+		_post_restart $1
+	fi
+}
+
+function update {
+	echo "Create update ../$1"
+	mkdir -p ../$1
+	cp update/* ../$1
+	cp $PRJ ../$1/$1
+}
+
+function rm {
+	if [ "$1" == "all" ]; then
+		docker stack rm $PRJ
+	elif [ "$1" != "" ]; then 
+		ID=`docker ps -f name=$PRJ'_'$1* --format {{.ID}}`
+		docker rm -f $ID
+	fi
+}
+
+function run {
+	if [ "$0" == "bash" ]; then 
+		$1 $2 $3
+		exit
+	fi
+	NODE=`docker stack ps -f desired-state=Running -f name=$PRJ'_'$2 $PRJ | awk 'FNR==2{print $4}'` 
+	if [ "$NODE" == "" ]; then 
+		echo "$PRJ node doesn't exist!"
+		$1 $2 $3
+		exit -1;
+	elif [ "$NODE" != "$HOST" ]; then 
+		echo "$PRJ runs on $NODE"
+		remote $NODE $1 $2 $3
+	else 
+		$1 $2 $3
+	fi
+}
+
+function remote {
+	echo "SSH into $1 to execute $2 $3 $4 ..."
+	TMPFILE=`mktemp`
+	cat $0 /srv/service > $TMPFILE
+	ssh -t $1 'bash -s' < $TMPFILE $2 $3 $4
+}
+
+function import {
+	if [ `type -t _import`"" == 'function' ]; then
+		_import $1 $2 $3
+		exit 0
+	fi
+	DFILE=`realpath $3`
+	echo "Import data from $DFILE ..."
+	mkdir -p /tmp/import; cd /tmp/import; $SUDO rm -rf *;
+	FUNC=import_$1
+	if [ `type -t $FUNC`"" == 'function' ]; then
+		$FUNC $2 $DFILE
+	fi
+	#$SUDO rm -rf /tmp/import
+}
+
+function xexport {
+	if [ `type -t _export`"" == 'function' ]; then
+		_export $1 $2 $3
+		exit 0
+	fi
+	DFILE=`realpath $3`
+	echo "Export data to $DFILE ..."
+	mkdir -p /tmp/export; cd /tmp/export; $SUDO /bin/rm -rf *
+	FUNC=export_$1
+	if [ `type -t $FUNC`"" == 'function' ]; then
+		$FUNC $2 $DFILE
+	fi
+ 	$SUDO /bin/rm -rf /tmp/export; 
+}
+
+function export_volume {
+	VOL=$PRJ'_'$1
+	docker volume inspect $VOL &> /dev/null
+	if [ $? -eq 0 ]; then 
+		echo "Export volume $VOL to $2 ..."
+		$SUDO tar czf $2 /var/lib/docker/volumes/$VOL/_data  
+	fi
+}
+
+function import_volume {
+	VOL=$PRJ'_'$1
+	if [ -d $2 ]; then
+		echo "Import volume $VOL from $2 ..."
+		cd /; $SUDO tar xzf $2
+	fi
+}
+
+function export_db {
+	echo "Export mysql $1 to $2 ..."
+	ID=`docker ps -f name=$PRJ'_'db* --format {{.ID}}`
+	if [ "$ID" != "" ]; then
+		/bin/rm -rf /tmp/$1
+		docker exec $ID sh -c "mysqldump -uroot -p$DBPWD $1 > /tmp/$1"
+		cd /tmp; tar czf $2 $1
+	fi
+}
+
+function import_db {
+	ID=`docker ps -f name=$PRJ'_'db* --format {{.ID}}`
+	if [ -f $2 ] && [ "$ID" != "" ]; then
+		echo "Import $2 into mysql $1 in $ID ..."
+		docker cp $2 $ID:/tmp
+		docker exec $ID sh -c "tar xzf /tmp/$2; mysql -uroot -p$DBPWD $1 < /tmp/$1"
+	fi
+}
+
+function export_mongo {
+	echo "Export mongo $1 to $2 ..."
+	$SUDO /bin/rm -rf /tmp/$1
+	ID=`docker ps -f name=$PRJ'_'mongo* --format {{.ID}}`
+	if [ "$ID" != "" ]; then
+		docker exec $ID sh -c "mongodump -d $1 -o /tmp/$1"
+		if [ -d /tmp/$1 ]; then 
+			cd /tmp/$1; tar czf $2 *
+		fi
+	fi
+}
+
+function import_mongo {
+	if [ -f $2 ]; then
+		ID=`docker ps -f name=$PRJ'_'mongo* --format {{.ID}}`
+		echo "Import $2 into mongo $1 in $ID ..."
+		FNAME=`basename $2`
+		docker cp $2 $ID:/tmp
+		docker exec $ID sh -c "cd /tmp; rm -rf $1; tar xzf $FNAME; mongorestore -d $1 /tmp/$1"
+	fi
+}
+
+function dkid {
+	ID=`docker ps -f name=$PRJ'_'$1 --format {{.ID}}`
+	if [ "$ID" == "" ]; then 
+		echo "$PRJ service doesn't exist!"
+		exit -1;
+	fi 
+}
+
+function sh {
+	SH=bash
+	if [ "$2" != "" ]; then
+		SH=$2
+	fi
+	dkid $1
+	docker exec -ti $ID /bin/$SH
+}
+
+function ps {
+	echo "+++ Stack"
+	docker stack ps -f desired-state=Running $PRJ
+	echo "+++ Service"
+	docker service ls | grep $PRJ
+	echo "+++ Container"
+	docker ps --format "table {{.ID}}\t{{.Names}}\t{{.RunningFor}}\t{{.Ports}}\t{{.Status}}" | grep $PRJ
+}
+
+function scale {
+	docker service scale $PRJ'_'$1=$2
+}
+
+function info {
+	docker system info
+}
+
+function logs {
+	ID=`docker ps -f name=$PRJ'_'$1* --format {{.ID}}`
+	docker logs -f $ID
+}
+
+function cron {
+	if [ `type -t _cron`"" == 'function' ]; then
+		_cron $2 $3
+		exit
+	fi
+	dkid $1
+	docker exec $ID sh -c "
+		cd /srv/drupal/sites; 
+		drush vget cron_key 2>/dev/null > /tmp/cronkey;
+	"
+	CRONKEY=`cat /tmp/cronkey | awk '/cron_key/{print $2}'`
+	NAME="$PRJ-cron"
+	DESC="$PRJ Cron Service"
+	START="/usr/bin/curl -s http://localhost:$PORT/cron.php?cron_key=$CRONKEY"
+	CALENDAR="*:0/5"
+	timer "$NAME" "$DESC" "$START" "$CALENDAR"
+}
+
+function timer_restart {
+	NAME=$PRJ-restart
+	DESC=$PRJ Restart Service
+	START=/srv/$PRJ/main/$PRJ restart $1
+	CALENDAR=*-*-* 02:00:00
+	timer $NAME $DESC $START $CALENDAR
+}
+
+function timer {
+	echo "
+[Unit]
+Description=$2
+[Service]
+Type=oneshot
+ExecStart=$3
+" > /tmp/$1.service
+	echo "Create $1.service"
+	$SUDO cp -r /tmp/$1.service /etc/systemd/system
+	echo "
+[Unit]
+Description=$2
+[Timer]
+OnCalendar=$4
+[Install]
+WantedBy=multi-user.target
+" > /tmp/$1.timer
+	echo "Create $1.timer"
+	$SUDO cp -r /tmp/$1.timer /etc/systemd/system
+	$SUDO systemctl enable /etc/systemd/system/$1.timer
+	$SUDO systemctl start $1.timer
+}
+
+function check {
+	for s in $REST; do
+		svc=(${s//,/ })
+		url=${svc[0]}
+		code=${svc[1]}
+		STATUS=`curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/$url`
+		if [ "$STATUS" == "$code" ]; then
+			echo "OK $s"
+		else 
+			echo "ERROR $s $STATUS"
+		fi
+		SVC=`curl -s  http://localhost:8000$url | jq '.code'`
+		if [ "$SVC" == "$code" ]; then
+			echo "OK proxy $s"
+		else 
+			echo "ERROR proxy $s $SVC"
+		fi
+	done	
+
+}
+
+function loadenv {
+	if (( $EUID != 0 )); then
+	    SUDO='sudo'
+	fi
+	# mongo command with replSet
+	if [ "$ZONE" != "" ]; then
+		URLS=(${ZONE//:/ })
+		FQDN=${URLS[0]}
+		export MGOPORT=${URLS[1]}
+		export MGOCMD="--keyFile /repl/auth.key --replSet $REPL"
+	fi
+}
+
+function replset {
+	dkid mongo
+	docker exec $ID initiate $MGOUSER $MGOPASS $REPL $ZONE $RPORTS
+}
+
+#-------------------------------------------------------------------------------
+# Command
+
+# Project config
+if [ -f /etc/default/$PRJ ]; then
+	. /etc/default/$PRJ
+fi
+# Project config
+if [ -f /data/default/$PRJ ]; then
+	. /data/default/$PRJ
+fi
+
+loadenv 	 
+
+if [ "$1" == "" ] || [ "$1" == "-h" ]; then
+	help
+elif [ "$1" == "up" ]; then
+	start $2
+elif [ "$1" == "export" ]; then
+	xexport $2 $3 $4
+elif [ `type -t $1` == 'function' ]; then
+	$1 $2 $3 $4 $5 $6 $7
+fi
