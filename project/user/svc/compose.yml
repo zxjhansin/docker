@@ -1,7 +1,7 @@
 version: "3.0"
 services:
   main:
-    image: jhansin/nginx-php:v1
+    image: $REPO/mdc-user:3.1.0114
     tty: true  
     hostname: user
     ports:
@@ -10,7 +10,7 @@ services:
       - ./conf.d:/etc/nginx/conf.d
       # - ./nginx/sites:/etc/nginx/conf.d
       # - ./nginx/ssl:/etc/nginx/ssl
-      - ./www:/usr/share/nginx/html/public/
+      # - ./www:/usr/share/nginx/html/public/
     networks:
       - proxy
       - default

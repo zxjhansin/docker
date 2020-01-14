@@ -1,0 +1,10 @@
+#!/bin/bash
+
+BDIR=/Users/zhangxin/build
+BVER=`date +"%Y%m%d"`
+
+if [ -e $BDIR/$BVER ]; then 
+	DOT=.`find $BDIR/$BVER* -maxdepth 0 -type d | wc | awk '{print $1}'`
+fi 
+
+make -B DOT=$DOT $*
