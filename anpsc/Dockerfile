@@ -16,6 +16,8 @@ ENV PHP_MAX_FILE_UPLOAD 200
 ENV PHP_MAX_POST        100M
 ENV COMPOSER_ALLOW_SUPERUSER 1
 
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+
 #2.ADD-PHP-FPM
 
 # Mirror mirror switch to Alpine Linux - http://dl-4.alpinelinux.org/alpine/
@@ -101,8 +103,11 @@ COPY ./nginx/conf.d/default.conf /etc/nginx/conf.d/
 COPY ./nginx/nginx.conf /etc/nginx/
 COPY ./nginx/cert/ /etc/nginx/cert/
 
-RUN mkdir -p /usr/share/nginx/html/public/
-COPY ./php/index.php /usr/share/nginx/html/public/
+RUN mkdir -p /usr/share/nginx/html/public/ &&\
+cd /usr/share/nginx/html/public; composer config -g repo.packagist composer https://mirrors.aliyun.com/composer/;composer create-project topthink/think tp 
+
+#COPY ./php/index.php /usr/share/nginx/html/public/
+
 #RUN mkdir -p /run/nginx
 #RUN touch /run/nginx/nginx.pid
 # Expose volumes
