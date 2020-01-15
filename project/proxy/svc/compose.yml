@@ -15,7 +15,7 @@ services:
       - DEBUG=true
       - DEBUG_ERRORS_ONLY=
     volumes:
-      - ./haproxy.cfg:/cfg/haproxy.cfg
+      - ./conf.d/haproxy.cfg:/cfg/haproxy.cfg
     deploy:
       placement:
         constraints: [node.role == manager]

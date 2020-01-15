@@ -9,4 +9,6 @@ BDIR=/Users/zhangxin/build/$(MVER)/$(BVER)
 
 user:
 	cd user; make -B BDIR=$(BDIR) PRJ=$(PRJ) MVER=$(MVER) SVER=$(SVER)
+proxy:
+	cd proxy; make -B BDIR=$(BDIR) PRJ=$(PRJ) MVER=$(MVER) SVER=$(SVER)
 

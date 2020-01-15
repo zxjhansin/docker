@@ -104,7 +104,7 @@ COPY ./nginx/nginx.conf /etc/nginx/
 COPY ./nginx/cert/ /etc/nginx/cert/
 
 RUN mkdir -p /usr/share/nginx/html/public/ &&\
-cd /usr/share/nginx/html/public; composer config -g repo.packagist composer https://mirrors.aliyun.com/composer/;composer create-project topthink/think tp 
+cd /usr/share/nginx/html/public; composer config -g repo.packagist composer https://mirrors.aliyun.com/composer/;composer create-project topthink/think=5.0.* tp5 
 
 #COPY ./php/index.php /usr/share/nginx/html/public/
 
@@ -117,8 +117,7 @@ WORKDIR /usr/share/nginx/html
 
 
 #5.ADD-SUPERVISOR
-RUN apk add supervisor \
- && rm -rf /var/cache/apk/*
+RUN apk add supervisor;rm -rf /var/cache/apk/*
 
 # Define mountable directories.
 VOLUME ["/etc/supervisor/conf.d", "/var/log/supervisor/"]
@@ -162,5 +161,5 @@ WORKDIR /usr/share/nginx/html
 COPY ./entrypoint.sh /usr/share/nginx/html/
 RUN chmod +x /usr/share/nginx/html/entrypoint.sh
 
-#CMD ["supervisord", "--nodaemon", "--configuration", "/etc/supervisor/conf.d/supervisord.conf"]
+CMD ["supervisord", "--nodaemon", "--configuration", "/etc/supervisor/conf.d/supervisord.conf"]
 ENTRYPOINT ["./entrypoint.sh"]
